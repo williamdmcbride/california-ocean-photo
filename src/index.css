@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+/* Optional: smoother fonts */
+html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+
+/* Smooth scroll to sections */
+html { scroll-behavior: smooth; }
