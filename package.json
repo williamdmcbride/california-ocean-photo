@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "publish": "git add . && (git commit -m \"Publish\" || git commit --allow-empty -m \"Publish\") && git push origin main && curl -s -X POST \"$VERCEL_DEPLOY_HOOK\" && echo '\\nTriggered Vercel deploy hook.'"
   },
   "dependencies": {
     "@fontsource/playfair-display": "^5.2.8",
