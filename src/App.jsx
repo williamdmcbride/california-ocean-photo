@@ -1,316 +1,271 @@
+// src/App.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { Routes, Route, Link, useParams } from "react-router-dom";
-import { Mail, Phone, MapPin, Instagram, X as IconClose, ChevronDown } from "lucide-react";
-import "@fontsource/playfair-display/600.css";
-import { loadPhotos } from "./utils/autoPhotos";
+import { BrowserRouter, Routes, Route, Link, useParams } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { loadAllPhotos } from "./utils/autoPhotos";
 
-/* ---------- Brand ---------- */
-const BRAND = {
-  name: "California Ocean Photography",
-  email: "californiaoceanphotography@gmail.com",
-  phone: "626-760-6971",
-  location: "Altadena, CA",
-  instagram: "https://instagram.com/yourhandle", // update when ready
+// --- helpers ---
+const toTitle = (s) => s.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+const useRotator = (count, ms = 3000) => {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    if (count < 2) return;
+    const t = setInterval(() => setI((n) => (n + 1) % count), ms);
+    return () => clearInterval(t);
+  }, [count, ms]);
+  return [i, setI];
 };
 
-/* ---------- Shell (no header; footer only) ---------- */
-function Shell({ children }) {
+// --- overlay nav used in heroes ---
+function OverlayNav() {
   return (
-    <div className="min-h-screen bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      {children}
-      <footer className="border-t border-slate-200 py-10 text-sm dark:border-slate-800">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-between gap-4 sm:flex-row">
-          <div className="text-slate-500 dark:text-slate-400" style={{ fontFamily: "Playfair Display, serif" }}>
-            © {new Date().getFullYear()} {BRAND.name}. All rights reserved.
-          </div>
-          <div className="flex gap-6" style={{ fontFamily: "Playfair Display, serif" }}>
-            <Link to="/about" className="hover:underline">About</Link>
-            <a href="/#work" className="hover:underline">Portfolio</a>
-            <a href="/#contact" className="hover:underline">Contact</a>
-          </div>
-        </div>
-      </footer>
-    </div>
+    <nav className="pointer-events-auto flex items-center justify-end gap-6 text-white/90">
+      <Link className="hover:opacity-80" to="/">Home</Link>
+      <a className="hover:opacity-80" href="/#portfolio">Portfolio</a>
+      <Link className="hover:opacity-80" to="/about">About</Link>
+      <a className="hover:opacity-80" href="/#contact">Contact</a>
+    </nav>
   );
 }
 
-/* ---------- Home (hero overlay + portfolio + contact) ---------- */
+// --- HOME ---
 function Home() {
-  const ALL = loadPhotos();
+  const all = useMemo(() => loadAllPhotos(), []);
+  // Prefer a folder named "Hero" or "HERO" if present, else just use the first few photos
+  const heroCandidates = useMemo(() => {
+    const heroish = all.filter((p) => /^(hero)$/i.test(p.folder || ""));
+    const list = (heroish.length ? heroish : all).slice(0, 5);
+    return list;
+  }, [all]);
 
-  // HERO images from src/photos/HERO; fallback to /public/hero.jpg
-  const heroImages = ALL.filter((p) => p.folder === "HERO").map((p) => p.src);
-  if (heroImages.length === 0) heroImages.push("/hero.jpg");
+  const [idx, setIdx] = useRotator(heroCandidates.length, 3000);
 
-  // Rotate every 3s
-  const [heroIndex, setHeroIndex] = useState(0);
-  useEffect(() => {
-    if (heroImages.length <= 1) return;
-    const id = setInterval(() => setHeroIndex((i) => (i + 1) % heroImages.length), 3000);
-    return () => clearInterval(id);
-  }, [heroImages.length]);
-
-  // Subjects grid (exclude HERO)
+  // Build subject cards: first image per folder
   const subjects = useMemo(() => {
     const map = new Map();
-    for (const p of ALL) {
-      if (p.folder === "HERO") continue;
-      if (!map.has(p.folder)) map.set(p.folder, []);
-      map.get(p.folder).push(p);
+    for (const p of all) {
+      const key = (p.folder || "Photos").trim();
+      if (!map.has(key)) map.set(key, p);
     }
-    const pickCover = (arr) => arr.find((x) => /hero|cover/i.test(x.filename)) || arr[0];
-    return Array.from(map.entries())
-      .map(([folder, items]) => ({
+    // Sort alpha, and drop Hero folder from the cards
+    return [...map.entries()]
+      .filter(([k]) => !/^(hero)$/i.test(k))
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([folder, cover]) => ({
         folder,
-        slug: toSlug(folder),
-        label: humanize(folder),
-        cover: pickCover(items),
-        count: items.length,
-      }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [ALL]);
+        slug: folder.toLowerCase(),
+        cover,
+      }));
+  }, [all]);
 
   return (
-    <>
-      {/* HERO with overlay (logo + menu) */}
-      <section id="top" className="relative h-[min(92vh,900px)] min-h-[420px] w-full overflow-hidden">
-        {/* rotating images */}
-        <div className="absolute inset-0">
-          {heroImages.map((src, i) => (
-            <img
-              key={src}
-              src={src}
-              alt="Hero"
-              className="absolute inset-0 h-full w-full object-cover transition-opacity duration-700"
-              style={{ opacity: i === heroIndex ? 1 : 0 }}
-            />
-          ))}
-        </div>
+    <div className="min-h-screen bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+      {/* HERO with rotating background + overlay nav (no top bar) */}
+      <section className="relative isolate h-[80vh] min-h-[520px] w-full overflow-hidden">
+        <AnimatePresence initial={false} mode="wait">
+          {heroCandidates.map((img, i) =>
+            i === idx ? (
+              <motion.img
+                key={img.src}
+                src={img.src}
+                alt="Featured"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.8 }}
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            ) : null
+          )}
+        </AnimatePresence>
 
-        {/* veil */}
-        <div className="absolute inset-0 bg-black/35" />
+        {/* readability gradient */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-black/60" />
 
-        {/* Overlay content */}
-        <div className="relative z-10 flex h-full flex-col items-center justify-center px-4 text-center">
-          {/* LOGO + name */}
-          <div className="mb-6 flex flex-col items-center gap-3">
-            <img
-              src="/logo.svg"
-              onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = "/logo.png"; }}
-              alt="Logo"
-              className="h-16 w-auto opacity-95"
-            />
-            <h1 className="font-['Playfair_Display'] text-4xl sm:text-6xl text-white tracking-tight">
-              {BRAND.name}
-            </h1>
+        {/* overlay nav + brand */}
+        <div className="pointer-events-none absolute inset-0 flex flex-col">
+          <div className="mx-auto w-full max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
+            <div className="pointer-events-auto flex items-center justify-between">
+              {/* Logo (optional). Put your file at /public/logo.svg or adjust src */}
+              <Link to="/" className="flex items-center gap-3 text-white">
+                <img
+                  src="/logo.svg"
+                  alt="California Ocean Photography"
+                  className="h-8 w-auto"
+                  onError={(e) => (e.currentTarget.style.display = "none")}
+                />
+              </Link>
+              <OverlayNav />
+            </div>
           </div>
 
-          {/* Overlay nav (NO Experience) */}
-          <nav
-            className="absolute bottom-12 left-1/2 -translate-x-1/2"
-            style={{ fontFamily: "Playfair Display, serif" }}
-            aria-label="Hero navigation"
-          >
-            <ul className="flex flex-wrap items-center justify-center gap-8 text-white/95 text-lg">
-              <li><Link className="hover:opacity-80" to="/about">ABOUT</Link></li>
-              <li><a className="hover:opacity-80" href="#work">PORTFOLIO</a></li>
-              <li><a className="hover:opacity-80" href="#contact">CONTACT</a></li>
-            </ul>
-          </nav>
-
-          {/* down chevron */}
-          <a
-            href="#work"
-            aria-label="Scroll to portfolio"
-            className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-white/15 p-2 text-white/90 backdrop-blur hover:bg-white/25"
-          >
-            <ChevronDown className="h-7 w-7 animate-bounce" />
-          </a>
+          {/* title block */}
+          <div className="relative mx-auto mt-auto w-full max-w-7xl px-4 pb-12 sm:px-6 lg:px-8">
+            <h1 className="text-4xl font-semibold tracking-tight text-white sm:text-6xl">
+              California Ocean Photography
+            </h1>
+          </div>
         </div>
       </section>
 
-      {/* PORTFOLIO (Subjects) */}
-      <section id="work" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h2 className="font-['Playfair_Display'] text-3xl sm:text-4xl">Portfolio</h2>
-          <p className="mt-2 text-slate-500 dark:text-slate-400">Browse by location or story.</p>
-        </div>
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {/* PORTFOLIO (subject cards) */}
+      <section id="portfolio" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+        <h2 className="mb-6 text-2xl font-semibold tracking-tight sm:text-3xl">Portfolio</h2>
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {subjects.map((s) => (
             <Link
               key={s.slug}
-              to={`/s/${s.slug}`}
-              className="group overflow-hidden rounded-2xl bg-white shadow-sm hover:shadow-lg dark:bg-slate-900"
+              to={`/s/${encodeURIComponent(s.slug)}`}
+              className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-lg dark:border-slate-800 dark:bg-slate-900"
             >
-              <div className="aspect-[4/3] w-full overflow-hidden">
-                <img
-                  src={s.cover?.src}
-                  alt={s.label}
-                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  loading="lazy"
-                />
-              </div>
-              <div className="flex items-center justify-between p-4">
-                <div className="font-medium">{s.label}</div>
-                <div className="text-xs text-slate-500">{s.count} photos</div>
+              <img
+                src={s.cover.src}
+                alt={s.folder}
+                className="h-56 w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                loading="lazy"
+              />
+              <div className="p-4">
+                <div className="text-lg font-medium">{toTitle(s.slug)}</div>
+                <div className="text-xs text-slate-500">{s.folder}</div>
               </div>
             </Link>
           ))}
         </div>
       </section>
 
-      {/* CONTACT */}
-      <section id="contact" className="mx-auto max-w-7xl px-4 pb-24 sm:px-6 lg:px-8">
-        <h2 className="font-['Playfair_Display'] text-3xl sm:text-4xl mb-6">Contact</h2>
-        <div className="grid gap-8 md:grid-cols-2">
-          <div className="space-y-3 text-sm">
-            <div className="flex items-center gap-3">
-              <Mail className="h-5 w-5" />
-              <a className="hover:underline" href={`mailto:${BRAND.email}`}>{BRAND.email}</a>
-            </div>
-            <div className="flex items-center gap-3">
-              <Phone className="h-5 w-5" />
-              <a href={`tel:${BRAND.phone}`} className="hover:underline">{BRAND.phone}</a>
-            </div>
-            <div className="flex items-center gap-3">
-              <MapPin className="h-5 w-5" /> {BRAND.location}
-            </div>
-            <div className="flex gap-3 mt-4">
-              <a href={BRAND.instagram} className="hover:opacity-70" aria-label="Instagram"><Instagram className="h-6 w-6" /></a>
-            </div>
-          </div>
-        </div>
-      </section>
-    </>
-  );
-}
-
-/* ---------- About Page (/about) ---------- */
-function AboutPage() {
-  return (
-    <main className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      {/* Full-viewport hero (no overlay text; shows entire photo) */}
-      <section className="relative h-[85vh] min-h-[560px] w-full overflow-hidden flex items-center justify-center bg-black">
-        <img
-          src="/me.jpg"
-          alt="California Ocean Photography — William McBride"
-          className="max-h-full max-w-full object-contain"
-        />
-      </section>
-
-      {/* Heading + statement BELOW the photo */}
-      <section className="mx-auto w-[min(92vw,1200px)] px-4 py-12 sm:py-16">
-        <h1 className="font-['Playfair_Display'] text-4xl sm:text-5xl mb-8">About</h1>
+      {/* CONTACT anchor (simple placeholder so /#contact works) */}
+      <section id="contact" className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <h2 className="font-['Playfair_Display'] text-2xl">Artist Statement</h2>
-          <p className="mt-4 text-slate-700 dark:text-slate-300">
-            I'm learning as I go, building this site from scratch as a simple outlet to practice,
-            improve, and share what I'm seeing. Every photo is part of that journey. I'm also happy
-            to share and exchange knowledge related to the ocean, photography, or building a website
-            with AI.
+          <h3 className="text-lg font-semibold">Contact</h3>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+            For bookings and inquiries:{" "}
+            <a className="underline" href="mailto:californiaoceanphotography@gmail.com">
+              californiaoceanphotography@gmail.com
+            </a>
           </p>
         </div>
       </section>
-    </main>
+    </div>
   );
 }
 
-/* ---------- Subject Page (/s/:slug) ---------- */
-function SubjectPage() {
-  const { slug } = useParams();
-  const ALL = loadPhotos();
+// --- SUBJECT PAGE (rotating hero like home) ---
+function Subject() {
+  const { slug } = useParams(); // e.g., "alaska"
+  const all = useMemo(() => loadAllPhotos(), []);
+  const photos = useMemo(
+    () => all.filter((p) => (p.folder || "").toLowerCase() === (slug || "").toLowerCase()),
+    [all, slug]
+  );
 
-  const groups = ALL.reduce((acc, p) => {
-    if (!acc[p.folder]) acc[p.folder] = [];
-    acc[p.folder].push(p);
-    return acc;
-  }, {});
-  const folder = Object.keys(groups).find((f) => toSlug(f) === slug);
-  const photos = groups[folder] || [];
-  const label = humanize(folder || "");
-
-  if (!folder) {
-    return (
-      <div className="mx-auto max-w-3xl px-4 py-20 sm:px-6 lg:px-8 text-center">
-        <h1 className="font-['Playfair_Display'] text-4xl sm:text-5xl">Not Found</h1>
-        <p className="mt-4 text-slate-600 dark:text-slate-400">Sorry, we couldn’t find that gallery.</p>
-        <Link to="/" className="mt-6 inline-block rounded-full bg-slate-900 px-6 py-3 text-white shadow hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900">Back Home</Link>
-      </div>
-    );
-  }
-
-  const hero = photos.find((p) => /hero|cover/i.test(p.filename)) || photos[0];
-
-  const [lightboxIndex, setLightboxIndex] = useState(null);
-  const current = lightboxIndex !== null ? photos[lightboxIndex] : null;
+  const heroSlides = photos.slice(0, 4);
+  const [idx, setIdx] = useRotator(heroSlides.length, 3000);
+  const title = toTitle(slug || "");
 
   return (
-    <>
-      {/* Subject hero */}
-      <section className="relative h-[60vh] min-h-[380px] w-full overflow-hidden">
-        {hero && <img src={hero.src} alt={label} className="absolute inset-0 h-full w-full object-cover" />}
-        <div className="absolute inset-0 bg-black/40" />
-        <div className="relative z-10 flex h-full items-end">
-          <div className="mx-auto w-full max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
-            <h1 className="font-['Playfair_Display'] text-4xl sm:text-5xl text-white">{label}</h1>
+    <div className="min-h-screen bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+      <section className="relative isolate h-[70vh] min-h-[420px] w-full overflow-hidden">
+        <AnimatePresence initial={false} mode="wait">
+          {(heroSlides.length ? heroSlides : photos.slice(0, 1)).map((img, i) =>
+            i === (idx % Math.max(heroSlides.length || 1, 1)) ? (
+              <motion.img
+                key={img.src}
+                src={img.src}
+                alt={title}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.8 }}
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            ) : null
+          )}
+        </AnimatePresence>
+        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-black/60" />
+        <div className="pointer-events-none absolute inset-0 flex flex-col">
+          <div className="mx-auto w-full max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
+            <div className="pointer-events-auto flex items-center justify-between">
+              <Link to="/" className="text-white hover:opacity-80">
+                Home
+              </Link>
+              <OverlayNav />
+            </div>
+          </div>
+          <div className="relative mx-auto mt-auto w-full max-w-7xl px-4 pb-10 sm:px-6 lg:px-8">
+            <h1 className="text-4xl font-semibold tracking-tight text-white sm:text-6xl">
+              {title}
+            </h1>
+            {heroSlides.length > 1 && (
+              <div className="mt-4 flex gap-2">
+                {heroSlides.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setIdx(i)}
+                    className={`h-2 w-2 rounded-full border border-white/70 ${
+                      i === idx ? "bg-white" : "bg-white/20"
+                    }`}
+                    aria-label={`Go to slide ${i + 1}`}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </section>
 
-      {/* Gallery */}
       <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="columns-1 gap-4 sm:columns-2 lg:columns-3">
-          {photos.map((p, i) => (
-            <button
-              key={p.src + i}
-              onClick={() => setLightboxIndex(i)}
-              className="mb-4 w-full overflow-hidden rounded-2xl bg-slate-50 shadow-sm ring-1 ring-slate-200 hover:shadow-lg dark:bg-slate-900 dark:ring-slate-800"
-              style={{ breakInside: "avoid" }}
-            >
-              <img src={p.src} alt={p.alt || p.filename} className="w-full h-auto object-contain" loading="lazy" />
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {/* Lightbox */}
-      {current && (
-        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/80 p-4" onClick={() => setLightboxIndex(null)}>
-          <div className="relative w-full max-w-5xl" onClick={(e) => e.stopPropagation()}>
-            <img src={current.src} alt={current.alt || current.filename} className="max-h-[80vh] w-full rounded-2xl object-contain shadow-2xl" />
-            <button onClick={() => setLightboxIndex(null)} className="absolute -right-3 -top-3 rounded-full bg-white p-2 text-slate-900 shadow" aria-label="Close">
-              <IconClose className="h-5 w-5" />
-            </button>
+        {!photos.length ? (
+          <div className="text-slate-500 dark:text-slate-400">
+            No images found for <span className="font-medium">{title}</span>.
           </div>
-        </div>
-      )}
-    </>
+        ) : (
+          <div className="columns-1 gap-4 sm:columns-2 lg:columns-3">
+            {photos.map((p) => (
+              <figure
+                key={p.src}
+                className="mb-4 break-inside-avoid overflow-hidden rounded-2xl bg-slate-100 shadow-sm ring-1 ring-slate-200 hover:shadow-lg dark:bg-slate-900 dark:ring-slate-800"
+              >
+                <img
+                  src={p.src}
+                  alt={p.name || title}
+                  className="w-full object-cover"
+                  loading="lazy"
+                />
+              </figure>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
 
-/* ---------- App Routes ---------- */
+// --- ABOUT (simple page) ---
+function About() {
+  return (
+    <div className="min-h-screen bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+      <section className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">About</h1>
+        <p className="mt-4 text-slate-600 dark:text-slate-300">
+          I’m an amateur photographer with a love for the ocean and the outdoors—learning by
+          doing, and sharing the journey as I go.
+        </p>
+      </section>
+    </div>
+  );
+}
+
+// --- APP ROOT ---
 export default function App() {
   return (
-    <Shell>
+    <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/about" element={<AboutPage />} />
-        <Route path="/s/:slug" element={<SubjectPage />} />
-        <Route path="*" element={<div className="p-10">Not Found</div>} />
+        <Route index element={<Home />} />
+        <Route path="/s/:slug" element={<Subject />} />
+        <Route path="/about" element={<About />} />
+        {/* Fallback */}
+        <Route path="*" element={<Home />} />
       </Routes>
-    </Shell>
+    </BrowserRouter>
   );
-}
-
-/* ---------- helpers ---------- */
-function humanize(name = "") {
-  return name
-    .replace(/([A-Z])/g, " $1")
-    .replace(/[-_]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-function toSlug(s = "") {
-  return humanize(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
