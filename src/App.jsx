@@ -1,22 +1,22 @@
 // src/App.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { BrowserRouter, Routes, Route, Link, useParams } from "react-router-dom";
+import { Routes, Route, Link, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { loadAllPhotos } from "./utils/autoPhotos";
 
-// --- helpers ---
-const toTitle = (s) => s.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+// ----------------- utils -----------------
+const toTitle = (s = "") => s.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 const useRotator = (count, ms = 3000) => {
   const [i, setI] = useState(0);
   useEffect(() => {
     if (count < 2) return;
-    const t = setInterval(() => setI((n) => (n + 1) % count), ms);
+    const t = setInterval(() => setI(n => (n + 1) % count), ms);
     return () => clearInterval(t);
   }, [count, ms]);
   return [i, setI];
 };
 
-// --- overlay nav used in heroes ---
+// Overlay nav that sits inside heroes (no top bar elsewhere)
 function OverlayNav() {
   return (
     <nav className="pointer-events-auto flex items-center justify-end gap-6 text-white/90">
@@ -28,42 +28,34 @@ function OverlayNav() {
   );
 }
 
-// --- HOME ---
+// ----------------- Home -----------------
 function Home() {
   const all = useMemo(() => loadAllPhotos(), []);
-  // Prefer a folder named "Hero" or "HERO" if present, else just use the first few photos
-  const heroCandidates = useMemo(() => {
-    const heroish = all.filter((p) => /^(hero)$/i.test(p.folder || ""));
-    const list = (heroish.length ? heroish : all).slice(0, 5);
-    return list;
+  // Prefer images from a folder named "Hero"/"HERO" if present, else first few photos
+  const heroSlides = useMemo(() => {
+    const heroish = all.filter(p => /^(hero)$/i.test(p.folder || ""));
+    return (heroish.length ? heroish : all).slice(0, 5);
   }, [all]);
+  const [idx] = useRotator(heroSlides.length, 3000);
 
-  const [idx, setIdx] = useRotator(heroCandidates.length, 3000);
-
-  // Build subject cards: first image per folder
+  // Build subject cards (first image per folder), exclude Hero
   const subjects = useMemo(() => {
     const map = new Map();
     for (const p of all) {
-      const key = (p.folder || "Photos").trim();
-      if (!map.has(key)) map.set(key, p);
+      const folder = (p.folder || "Photos").trim();
+      if (!/^(hero)$/i.test(folder) && !map.has(folder)) map.set(folder, p);
     }
-    // Sort alpha, and drop Hero folder from the cards
     return [...map.entries()]
-      .filter(([k]) => !/^(hero)$/i.test(k))
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([folder, cover]) => ({
-        folder,
-        slug: folder.toLowerCase(),
-        cover,
-      }));
+      .map(([folder, cover]) => ({ folder, slug: folder.toLowerCase(), cover }));
   }, [all]);
 
   return (
     <div className="min-h-screen bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      {/* HERO with rotating background + overlay nav (no top bar) */}
+      {/* HERO */}
       <section className="relative isolate h-[80vh] min-h-[520px] w-full overflow-hidden">
         <AnimatePresence initial={false} mode="wait">
-          {heroCandidates.map((img, i) =>
+          {heroSlides.map((img, i) =>
             i === idx ? (
               <motion.img
                 key={img.src}
@@ -78,16 +70,14 @@ function Home() {
             ) : null
           )}
         </AnimatePresence>
-
-        {/* readability gradient */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-black/60" />
 
         {/* overlay nav + brand */}
         <div className="pointer-events-none absolute inset-0 flex flex-col">
           <div className="mx-auto w-full max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
             <div className="pointer-events-auto flex items-center justify-between">
-              {/* Logo (optional). Put your file at /public/logo.svg or adjust src */}
               <Link to="/" className="flex items-center gap-3 text-white">
+                {/* Put your logo at /public/logo.svg (or change src) */}
                 <img
                   src="/logo.svg"
                   alt="California Ocean Photography"
@@ -99,7 +89,6 @@ function Home() {
             </div>
           </div>
 
-          {/* title block */}
           <div className="relative mx-auto mt-auto w-full max-w-7xl px-4 pb-12 sm:px-6 lg:px-8">
             <h1 className="text-4xl font-semibold tracking-tight text-white sm:text-6xl">
               California Ocean Photography
@@ -108,7 +97,7 @@ function Home() {
         </div>
       </section>
 
-      {/* PORTFOLIO (subject cards) */}
+      {/* PORTFOLIO */}
       <section id="portfolio" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <h2 className="mb-6 text-2xl font-semibold tracking-tight sm:text-3xl">Portfolio</h2>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -133,7 +122,7 @@ function Home() {
         </div>
       </section>
 
-      {/* CONTACT anchor (simple placeholder so /#contact works) */}
+      {/* CONTACT anchor target */}
       <section id="contact" className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <h3 className="text-lg font-semibold">Contact</h3>
@@ -149,25 +138,26 @@ function Home() {
   );
 }
 
-// --- SUBJECT PAGE (rotating hero like home) ---
+// ----------------- Subject Page -----------------
 function Subject() {
-  const { slug } = useParams(); // e.g., "alaska"
+  const { slug } = useParams(); // e.g. "alaska"
   const all = useMemo(() => loadAllPhotos(), []);
   const photos = useMemo(
-    () => all.filter((p) => (p.folder || "").toLowerCase() === (slug || "").toLowerCase()),
+    () => all.filter(p => (p.folder || "").toLowerCase() === (slug || "").toLowerCase()),
     [all, slug]
   );
 
-  const heroSlides = photos.slice(0, 4);
-  const [idx, setIdx] = useRotator(heroSlides.length, 3000);
+  const hero = photos.slice(0, 4);
+  const [idx, setIdx] = useRotator(hero.length, 3000);
   const title = toTitle(slug || "");
 
   return (
     <div className="min-h-screen bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+      {/* HERO */}
       <section className="relative isolate h-[70vh] min-h-[420px] w-full overflow-hidden">
         <AnimatePresence initial={false} mode="wait">
-          {(heroSlides.length ? heroSlides : photos.slice(0, 1)).map((img, i) =>
-            i === (idx % Math.max(heroSlides.length || 1, 1)) ? (
+          {(hero.length ? hero : photos.slice(0, 1)).map((img, i) =>
+            i === (idx % Math.max(hero.length || 1, 1)) ? (
               <motion.img
                 key={img.src}
                 src={img.src}
@@ -182,12 +172,11 @@ function Subject() {
           )}
         </AnimatePresence>
         <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-black/60" />
+
         <div className="pointer-events-none absolute inset-0 flex flex-col">
           <div className="mx-auto w-full max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
             <div className="pointer-events-auto flex items-center justify-between">
-              <Link to="/" className="text-white hover:opacity-80">
-                Home
-              </Link>
+              <Link to="/" className="text-white hover:opacity-80">Home</Link>
               <OverlayNav />
             </div>
           </div>
@@ -195,15 +184,13 @@ function Subject() {
             <h1 className="text-4xl font-semibold tracking-tight text-white sm:text-6xl">
               {title}
             </h1>
-            {heroSlides.length > 1 && (
+            {hero.length > 1 && (
               <div className="mt-4 flex gap-2">
-                {heroSlides.map((_, i) => (
+                {hero.map((_, i) => (
                   <button
                     key={i}
                     onClick={() => setIdx(i)}
-                    className={`h-2 w-2 rounded-full border border-white/70 ${
-                      i === idx ? "bg-white" : "bg-white/20"
-                    }`}
+                    className={`h-2 w-2 rounded-full border border-white/70 ${i === idx ? "bg-white" : "bg-white/20"}`}
                     aria-label={`Go to slide ${i + 1}`}
                   />
                 ))}
@@ -213,6 +200,7 @@ function Subject() {
         </div>
       </section>
 
+      {/* GRID */}
       <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         {!photos.length ? (
           <div className="text-slate-500 dark:text-slate-400">
@@ -240,7 +228,7 @@ function Subject() {
   );
 }
 
-// --- ABOUT (simple page) ---
+// ----------------- About -----------------
 function About() {
   return (
     <div className="min-h-screen bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
@@ -255,17 +243,14 @@ function About() {
   );
 }
 
-// --- APP ROOT ---
+// ----------------- App Root (NO BrowserRouter here) -----------------
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route index element={<Home />} />
-        <Route path="/s/:slug" element={<Subject />} />
-        <Route path="/about" element={<About />} />
-        {/* Fallback */}
-        <Route path="*" element={<Home />} />
-      </Routes>
-    </BrowserRouter>
+    <Routes>
+      <Route index element={<Home />} />
+      <Route path="/s/:slug" element={<Subject />} />
+      <Route path="/about" element={<About />} />
+      <Route path="*" element={<Home />} />
+    </Routes>
   );
 }
