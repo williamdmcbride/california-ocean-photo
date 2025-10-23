@@ -4,19 +4,18 @@ import { Routes, Route, Link, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { loadAllPhotos } from "./utils/autoPhotos";
 
-// ----------------- utils -----------------
-const toTitle = (s = "") => s.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+// ----------------- helpers -----------------
+const toTitle = (s = "") => s.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 const useRotator = (count, ms = 3000) => {
   const [i, setI] = useState(0);
   useEffect(() => {
     if (count < 2) return;
-    const t = setInterval(() => setI(n => (n + 1) % count), ms);
+    const t = setInterval(() => setI((n) => (n + 1) % count), ms);
     return () => clearInterval(t);
   }, [count, ms]);
   return [i, setI];
 };
 
-// Overlay nav that sits inside heroes (no top bar elsewhere)
 function OverlayNav() {
   return (
     <nav className="pointer-events-auto flex items-center justify-end gap-6 text-white/90">
@@ -28,17 +27,32 @@ function OverlayNav() {
   );
 }
 
+function FooterLegal() {
+  return (
+    <footer className="border-t border-slate-200 py-8 text-sm dark:border-slate-800">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div className="text-slate-500 dark:text-slate-400">
+          © {new Date().getFullYear()} California Ocean Photography
+        </div>
+        <div className="flex gap-4">
+          <Link className="text-slate-500 hover:underline dark:text-slate-400" to="/privacy">
+            Privacy
+          </Link>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
 // ----------------- Home -----------------
 function Home() {
   const all = useMemo(() => loadAllPhotos(), []);
-  // Prefer images from a folder named "Hero"/"HERO" if present, else first few photos
   const heroSlides = useMemo(() => {
-    const heroish = all.filter(p => /^(hero)$/i.test(p.folder || ""));
+    const heroish = all.filter((p) => /^(hero)$/i.test(p.folder || ""));
     return (heroish.length ? heroish : all).slice(0, 5);
   }, [all]);
   const [idx] = useRotator(heroSlides.length, 3000);
 
-  // Build subject cards (first image per folder), exclude Hero
   const subjects = useMemo(() => {
     const map = new Map();
     for (const p of all) {
@@ -72,12 +86,11 @@ function Home() {
         </AnimatePresence>
         <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-black/60" />
 
-        {/* overlay nav + brand */}
+        {/* overlay nav + logo */}
         <div className="pointer-events-none absolute inset-0 flex flex-col">
           <div className="mx-auto w-full max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
             <div className="pointer-events-auto flex items-center justify-between">
               <Link to="/" className="flex items-center gap-3 text-white">
-                {/* Put your logo at /public/logo.svg (or change src) */}
                 <img
                   src="/logo.svg"
                   alt="California Ocean Photography"
@@ -122,7 +135,7 @@ function Home() {
         </div>
       </section>
 
-      {/* CONTACT anchor target */}
+      {/* CONTACT anchor */}
       <section id="contact" className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <h3 className="text-lg font-semibold">Contact</h3>
@@ -134,16 +147,18 @@ function Home() {
           </p>
         </div>
       </section>
+
+      <FooterLegal />
     </div>
   );
 }
 
-// ----------------- Subject Page -----------------
+// ----------------- Subject -----------------
 function Subject() {
-  const { slug } = useParams(); // e.g. "alaska"
+  const { slug } = useParams();
   const all = useMemo(() => loadAllPhotos(), []);
   const photos = useMemo(
-    () => all.filter(p => (p.folder || "").toLowerCase() === (slug || "").toLowerCase()),
+    () => all.filter((p) => (p.folder || "").toLowerCase() === (slug || "").toLowerCase()),
     [all, slug]
   );
 
@@ -190,7 +205,9 @@ function Subject() {
                   <button
                     key={i}
                     onClick={() => setIdx(i)}
-                    className={`h-2 w-2 rounded-full border border-white/70 ${i === idx ? "bg-white" : "bg-white/20"}`}
+                    className={`h-2 w-2 rounded-full border border-white/70 ${
+                      i === idx ? "bg-white" : "bg-white/20"
+                    }`}
                     aria-label={`Go to slide ${i + 1}`}
                   />
                 ))}
@@ -224,6 +241,8 @@ function Subject() {
           </div>
         )}
       </section>
+
+      <FooterLegal />
     </div>
   );
 }
@@ -239,17 +258,49 @@ function About() {
           doing, and sharing the journey as I go.
         </p>
       </section>
+      <FooterLegal />
     </div>
   );
 }
 
-// ----------------- App Root (NO BrowserRouter here) -----------------
+// ----------------- Privacy -----------------
+function PrivacyPolicy() {
+  return (
+    <div className="min-h-screen bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+      <section className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Privacy Policy</h1>
+        <p className="mt-4 text-slate-600 dark:text-slate-300">
+          California Ocean Photography respects your privacy. We do not sell, rent, or share your
+          personal information with third parties. Any information collected through this website—
+          such as via the contact form—is used solely to respond to your inquiry.
+        </p>
+        <p className="mt-4 text-slate-600 dark:text-slate-300">
+          If you subscribe to updates or contact us, your information will be stored securely and
+          used only for communication purposes related to California Ocean Photography.
+        </p>
+        <p className="mt-4 text-slate-600 dark:text-slate-300">
+          You may request deletion of your information at any time by contacting{" "}
+          <a className="underline" href="mailto:californiaoceanphotography@gmail.com">
+            californiaoceanphotography@gmail.com
+          </a>.
+        </p>
+        <p className="mt-8 text-sm text-slate-500 dark:text-slate-400">
+          Effective date: {new Date().toLocaleDateString()}
+        </p>
+      </section>
+      <FooterLegal />
+    </div>
+  );
+}
+
+// ----------------- App Root -----------------
 export default function App() {
   return (
     <Routes>
       <Route index element={<Home />} />
       <Route path="/s/:slug" element={<Subject />} />
       <Route path="/about" element={<About />} />
+      <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="*" element={<Home />} />
     </Routes>
   );
